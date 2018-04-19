@@ -2,4 +2,6 @@
 estuary.iml
 target/
 logs/
+resources/application.conf
+resources/logback.xml
 .gitignore
