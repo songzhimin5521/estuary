@@ -65,12 +65,20 @@ final class Mysql2KafkaTaskInfoBean extends MysqlBean with KafkaBean with BaseEx
   /**
     * binlog文件名称
     */
-  var batcherNum: Int = 4
+  var batcherNum: Int = 15
   /**
     * 数据拉取时延
     * 单位微秒
     */
   val fetchDelay: AtomicLong = new AtomicLong(2000)
+  /**
+    * 同步关心的表
+    */
+  var concernedDatabase = ""
+  /**
+    * 同步忽略的表
+    */
+  var ignoredDatabase = ""
   /**
     * 监听心跳
     */

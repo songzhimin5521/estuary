@@ -1,14 +1,14 @@
 package com.neighborhood.aka.laplace.estuary.web.service
 
-import com.neighborhood.aka.laplace.estuary.mongodb.MongoPersistence
 import com.neighborhood.aka.laplace.estuary.mysql.Mysql2KafkaTaskInfoManager
 import com.neighborhood.aka.laplace.estuary.mysql.lifecycle.MysqlBinlogController
-import com.neighborhood.aka.laplace.estuary.web.akka.ActorRefHolder
-import com.neighborhood.aka.laplace.estuary.web.akka.ActorRefHolder.actorRefMap
+import com.neighborhood.aka.laplace.estuary.web.akkaUtil.ActorRefHolder
+import com.neighborhood.aka.laplace.estuary.web.akkaUtil.ActorRefHolder.actorRefMap
 import com.neighborhood.aka.laplace.estuary.web.bean.Mysql2kafkaTaskRequestBean
-import com.neighborhood.aka.laplace.estuary.web.utils.MysqlTaskBeanTransformUtil
+import com.neighborhood.aka.laplace.estuary.web.dao.MongoPersistence
+import com.neighborhood.aka.laplace.estuary.web.utils.TaskBeanTransformUtil
 import org.slf4j.{Logger, LoggerFactory}
-
+import org.springframework.beans.factory.annotation.Autowired
 
 
 /**
@@ -16,12 +16,13 @@ import org.slf4j.{Logger, LoggerFactory}
   */
 object Mysql2KafkaService {
 
-  val logger:Logger = LoggerFactory.getLogger(Mysql2KafkaService.getClass)
-  val mongoPersistence=new MongoPersistence[Mysql2kafkaTaskRequestBean]
+  val logger: Logger = LoggerFactory.getLogger(Mysql2KafkaService.getClass)
+
+  val mongoPersistence = new MongoPersistence[Mysql2kafkaTaskRequestBean]
 
   // 根据syncTaskId从mongodb中查询出详细信息
-  def loadOneExistTask(key: String,value: String):Mysql2kafkaTaskRequestBean = {
-    val mongoValue=mongoPersistence.getKV(classOf[Mysql2kafkaTaskRequestBean],key,value)
+  def loadOneExistTask(key: String, value: String): Mysql2kafkaTaskRequestBean = {
+    val mongoValue = mongoPersistence.getKV(classOf[Mysql2kafkaTaskRequestBean], key, value)
     mongoValue
   }
 
@@ -32,30 +33,25 @@ object Mysql2KafkaService {
 
   def startAllExistTask: String = {
     import scala.collection.JavaConversions._
-        loadAllExistTask
-          .map(startAllExistTasks(_))
-          .mkString(",")
+    loadAllExistTask
+      .map(startAllExistTasks(_))
+      .mkString(",")
 
   }
-  def startOneExistTask(key: String,value: String): String = {
-    Option(actorRefMap.get(key))
-    match{
-      case value => {
-        s"mession: exist task ${value} already started"
-      }
-      case _ => {
-        val mysql2kafkaTaskRequestBean=loadOneExistTask(key,value)
-        val mysql2KafkaTaskInfoBean= MysqlTaskBeanTransformUtil.transform(mysql2kafkaTaskRequestBean)
-        val prop = MysqlBinlogController.props(mysql2KafkaTaskInfoBean)
-        ActorRefHolder.syncDaemon ! (prop, Option(mysql2KafkaTaskInfoBean.syncTaskId))
-        //    开启已经存在的任务不需要持久化
-        s"mession: exist task ${mysql2KafkaTaskInfoBean.syncTaskId} submitted"
-      }
-    }
+
+  def startOneExistTask(key: String, value: String): String = {
+    Option(actorRefMap.get(key)).fold {
+      val mysql2kafkaTaskRequestBean = loadOneExistTask(key, value)
+      val mysql2KafkaTaskInfoBean = TaskBeanTransformUtil.transform2Mysql2KafkaTaskInfoBean(mysql2kafkaTaskRequestBean)
+      val prop = MysqlBinlogController.props(mysql2KafkaTaskInfoBean)
+      ActorRefHolder.syncDaemon ! (prop, Option(mysql2KafkaTaskInfoBean.syncTaskId))
+      //    开启已经存在的任务不需要持久化
+      s"mession: exist task ${mysql2KafkaTaskInfoBean.syncTaskId} submitted"
+    }(value => s"mession: exist task ${value} already started")
   }
 
-  def startAllExistTasks(mysql2kafkaTaskRequestBean: Mysql2kafkaTaskRequestBean):String={
-    val mysql2KafkaTaskInfoBean= MysqlTaskBeanTransformUtil.transform(mysql2kafkaTaskRequestBean)
+  def startAllExistTasks(mysql2kafkaTaskRequestBean: Mysql2kafkaTaskRequestBean): String = {
+    val mysql2KafkaTaskInfoBean = TaskBeanTransformUtil.transform2Mysql2KafkaTaskInfoBean(mysql2kafkaTaskRequestBean)
     val prop = MysqlBinlogController.props(mysql2KafkaTaskInfoBean)
     ActorRefHolder.syncDaemon ! (prop, Option(mysql2KafkaTaskInfoBean.syncTaskId))
     //    开启已经存在的任务不需要持久化
@@ -63,7 +59,8 @@ object Mysql2KafkaService {
   }
 
   def startNewOneTask(mysql2kafkaTaskRequestBean: Mysql2kafkaTaskRequestBean): String = {
-    val mysql2KafkaTaskInfoBean= MysqlTaskBeanTransformUtil.transform(mysql2kafkaTaskRequestBean)
+    val mysql2KafkaTaskInfoBean = TaskBeanTransformUtil.transform2Mysql2KafkaTaskInfoBean(
+      mysql2kafkaTaskRequestBean)
     val prop = MysqlBinlogController.props(mysql2KafkaTaskInfoBean)
     ActorRefHolder.syncDaemon ! (prop, Option(mysql2KafkaTaskInfoBean.syncTaskId))
     //todo 持久化任务

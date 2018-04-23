@@ -1,8 +1,8 @@
 package com.neighborhood.aka.laplace.estuary.mysql.lifecycle
 
 import java.util
-import java.util.concurrent.{Executors, ForkJoinPool}
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.{Executors, ForkJoinPool}
 
 import akka.actor.SupervisorStrategy.Escalate
 import akka.actor.{Actor, ActorLogging, ActorRef, AllForOneStrategy, Props}
@@ -18,6 +18,7 @@ import com.neighborhood.aka.laplace.estuary.core.lifecycle.{SourceDataBatcher, S
 import com.neighborhood.aka.laplace.estuary.core.task.TaskManager
 import com.neighborhood.aka.laplace.estuary.mysql.{CanalEntryJsonHelper, JsonUtil, Mysql2KafkaTaskInfoManager, MysqlBinlogParser}
 import com.taobao.tddl.dbsync.binlog.LogEvent
+import org.springframework.util.StringUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -62,6 +63,10 @@ class BinlogEventBatcher(
     * 打包的阈值
     */
   val batchThreshold: AtomicLong = if (isDdlHandler) new AtomicLong(1) else mysql2KafkaTaskInfoManager.taskInfo.batchThreshold
+  /**
+    * 该mysql实例所有的db
+    */
+  lazy val mysqlDatabaseNameList = mysql2KafkaTaskInfoManager.mysqlDatabaseNameList
   /**
     * 打包的entry
     */
@@ -126,6 +131,7 @@ class BinlogEventBatcher(
     }
     case SyncControllerMessage(msg) => {
       msg match {
+          //刷新数据
         case "flush" => flush
       }
     }
@@ -158,7 +164,7 @@ class BinlogEventBatcher(
     */
   def flush = {
     if (!entryBatch.isEmpty) {
-      val batch = entryBatch
+      val batch = entryBatch  //
       val size = batch.size
 
       /**
@@ -186,6 +192,36 @@ class BinlogEventBatcher(
                 tempJsonKey.syncTaskId = mysql2KafkaTaskInfoManager.taskInfo.syncTaskId
                 tempJsonKey.msgSyncStartTime = before
                 tempJsonKey.msgSize = entry.getSerializedSize
+
+                /**
+                  * 局部方法 判断eventType，根据eventType执行不同操作
+                  * @return
+                  */
+                def tranferEntry2JsonByEventType:Array[KafkaMessage]= {
+                  eventType match {
+                    //DML操作都执行tranformDMLtoJson这个方法
+                    case CanalEntry.EventType.DELETE => tranformDMLtoJson(entry, tempJsonKey, "DELETE")
+                    case CanalEntry.EventType.INSERT => tranformDMLtoJson(entry, tempJsonKey, "INSERT")
+                    case CanalEntry.EventType.UPDATE => tranformDMLtoJson(entry, tempJsonKey, "UPDATE")
+                    //DDL操作直接将entry变为json,目前只处理Alter
+                    case CanalEntry.EventType.ALTER => {
+                      Array(transferDDltoJson(tempJsonKey, entry, header.getLogfileName, header.getLogfileOffset, before))
+                    }
+                    //                      case CanalEntry.EventType.CREATE => {
+                    //                        transferDDltoJson(tempJsonKey, entry, header.getLogfileName, header.getLogfileOffset, before)
+                    //                        val theAfter = System.currentTimeMillis()
+                    //                        tempJsonKey.setMsgSyncEndTime(theAfter)
+                    //                        tempJsonKey.setMsgSyncUsedTime(theAfter - before)
+                    //                      }
+                    case x => {
+
+                      log.warning(s"unsupported EntryType:$x")
+                      Array.empty
+                    }
+
+                  }
+                }
+
                 //根据entry的类型来执行不同的操作
                 entryType match {
                   case CanalEntry.EntryType.TRANSACTIONEND => {
@@ -195,27 +231,7 @@ class BinlogEventBatcher(
                     BinlogPositionInfo(header.getLogfileName, header.getLogfileOffset)
                   }
                   case CanalEntry.EntryType.ROWDATA => {
-                    eventType match {
-                      //DML操作都执行tranformDMLtoJson这个方法
-                      case CanalEntry.EventType.DELETE => tranformDMLtoJson(entry, tempJsonKey, "DELETE")
-                      case CanalEntry.EventType.INSERT => tranformDMLtoJson(entry, tempJsonKey, "INSERT")
-                      case CanalEntry.EventType.UPDATE => tranformDMLtoJson(entry, tempJsonKey, "UPDATE")
-                      //DDL操作直接将entry变为json,目前只处理Alter
-                      case CanalEntry.EventType.ALTER => {
-                        transferDDltoJson(tempJsonKey, entry, header.getLogfileName, header.getLogfileOffset, before)
-                      }
-                      //                      case CanalEntry.EventType.CREATE => {
-                      //                        transferDDltoJson(tempJsonKey, entry, header.getLogfileName, header.getLogfileOffset, before)
-                      //                        val theAfter = System.currentTimeMillis()
-                      //                        tempJsonKey.setMsgSyncEndTime(theAfter)
-                      //                        tempJsonKey.setMsgSyncUsedTime(theAfter - before)
-                      //                      }
-                      case x => {
-
-                        log.warning(s"unsupported EntryType:$x")
-                      }
-
-                    }
+                    tranferEntry2JsonByEventType
                   }
                 }
 
@@ -232,8 +248,38 @@ class BinlogEventBatcher(
 
       if (isDdlHandler) binlogEventSinker ! flushData else Future(flushData).pipeTo(binlogEventSinker)
       entryBatch = List.empty
-    } else {
+    } else if (isDdlHandler) {
+      log.info(s"ddlHandler is sending heartbeats at time:${System.currentTimeMillis}")
+      val concernedDbName = mysql2KafkaTaskInfoManager.taskInfo.concernedDatabase
+      val ignoredDbName = mysql2KafkaTaskInfoManager.taskInfo.ignoredDatabase
 
+      val concernedDbNames = if (StringUtils.isEmpty(concernedDbName)) Array.empty[String] else concernedDbName.split(",")
+      val ignoredDbNames = if (StringUtils.isEmpty(ignoredDbName)) Array.empty[String] else ignoredDbName.split(",")
+
+
+      /**
+        *
+        * @param dbNameList 需要发送dummyData的db名称列表
+        * @param sinker     sinker的ActorRef
+        *                   构造假数据并发送给sinker
+        */
+      def buildAndSendDummyKafkaMessage(dbNameList: Iterable[String])(sinker: ActorRef): Unit = {
+        val kafkaMessageList: List[Any] = dbNameList
+          .map {
+            dbName =>
+              CanalEntryJsonHelper.dummyKafkaMessage(dbName)
+          }.toList
+        sinker ! kafkaMessageList
+      }
+
+      (concernedDbNames.size > 0, ignoredDbNames.size > 0) match {
+        case (true, _) => buildAndSendDummyKafkaMessage(concernedDbNames)(binlogEventSinker)
+        case (_, true) => buildAndSendDummyKafkaMessage(mysqlDatabaseNameList.diff(ignoredDbNames))(binlogEventSinker)
+        case (_, false) => buildAndSendDummyKafkaMessage(mysqlDatabaseNameList)(binlogEventSinker)
+      }
+
+      if (isCounting) mysql2KafkaTaskInfoManager.batchCount.incrementAndGet;
+      mysql2KafkaTaskInfoManager.fetchCount.incrementAndGet()
     }
   }
 
@@ -296,6 +342,7 @@ class BinlogEventBatcher(
 
     val re = Try(CanalEntry.RowChange.parseFrom(entry.getStoreValue)) match {
       case Success(rowChange) => {
+       val a = rowChange.getRowDatasCount
         (0 until rowChange.getRowDatasCount)
           .map {
             index =>
@@ -466,7 +513,7 @@ class BinlogEventBatcher(
 }
 
 object BinlogEventBatcher {
-  def prop(binlogEventSinker: ActorRef, mysql2KafkaTaskInfoManager: Mysql2KafkaTaskInfoManager, isDdlHandler: Boolean = false): Props = Props(new BinlogEventBatcher(binlogEventSinker, mysql2KafkaTaskInfoManager,isDdlHandler))
+  def prop(binlogEventSinker: ActorRef, mysql2KafkaTaskInfoManager: Mysql2KafkaTaskInfoManager, isDdlHandler: Boolean = false): Props = Props(new BinlogEventBatcher(binlogEventSinker, mysql2KafkaTaskInfoManager, isDdlHandler))
 }
 
 

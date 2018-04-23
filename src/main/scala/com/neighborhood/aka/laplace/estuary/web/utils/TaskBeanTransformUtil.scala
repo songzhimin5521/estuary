@@ -7,9 +7,10 @@ import org.springframework.util.StringUtils
 
 import scala.collection.JavaConverters._
 
-object MysqlTaskBeanTransformUtil{
-  var taskInfo = new Mysql2KafkaTaskInfoBean
-  def transform(requestBody : Mysql2kafkaTaskRequestBean): Mysql2KafkaTaskInfoBean ={
+object TaskBeanTransformUtil {
+
+  def transform2Mysql2KafkaTaskInfoBean(requestBody: Mysql2kafkaTaskRequestBean): Mysql2KafkaTaskInfoBean = {
+    val taskInfo = new Mysql2KafkaTaskInfoBean
     //任务id
     taskInfo.syncTaskId = requestBody.getSyncTaskId
     //监听用
@@ -70,6 +71,9 @@ object MysqlTaskBeanTransformUtil{
     }
     //fetcher
     taskInfo.fetchDelay.set(requestBody.getFetchDelay)
+
+    taskInfo.concernedDatabase = requestBody.getConcernedDataBase
+    taskInfo.ignoredDatabase = requestBody.getIgnoredDataBase
     taskInfo
   }
 }

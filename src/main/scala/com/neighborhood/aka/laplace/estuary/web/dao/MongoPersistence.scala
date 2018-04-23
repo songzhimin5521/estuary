@@ -1,8 +1,8 @@
-package com.neighborhood.aka.laplace.estuary.mongodb
+package com.neighborhood.aka.laplace.estuary.web.dao
 
 import java.util
 
-import com.neighborhood.aka.laplace.estuary.web.bean.{Mysql2kafkaTaskRequestBean, TaskRequestBean}
+import com.neighborhood.aka.laplace.estuary.web.bean.TaskRequestBean
 import com.neighborhood.aka.laplace.estuary.web.utils.MongoUtils
 import org.mongodb.morphia.Datastore
 import org.mongodb.morphia.query.Query
@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component
 @Component
 class MongoPersistence[E <: TaskRequestBean] {
   private val LOG = LoggerFactory.getLogger(classOf[MongoPersistence[E]])
+
   private val mongoUtils: MongoUtils = new MongoUtils
   private val datastore: Datastore = mongoUtils.initMongo
 
@@ -65,9 +66,9 @@ class MongoPersistence[E <: TaskRequestBean] {
   def findAll(clazz: Class[E]): util.List[E] = getBy(clazz, null)
 
 
-
 }
+
 object MongoPersistence {
-  def apply[E<:TaskRequestBean]: MongoPersistence[E] = new MongoPersistence[E]()
+  def apply[E <: TaskRequestBean]: MongoPersistence[E] = new MongoPersistence[E]()
 }
 

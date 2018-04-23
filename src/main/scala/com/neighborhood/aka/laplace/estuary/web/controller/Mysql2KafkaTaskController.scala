@@ -14,11 +14,24 @@ import org.springframework.web.bind.annotation._
 class Mysql2KafkaTaskController {
 
 
-  //    @GetMapping(Array(""))
-  //    def getAllSparkJobEntity() = {
-  //      val all = sparkEntityDao.findAll().toList.map(_.toView())
-  //      JsonHelper.to(all)
-  //    }
+  @ApiOperation(value = "开始一个已经存在的mysql2kafka任务", httpMethod = "POST", notes = "")
+  @RequestMapping(value = Array("/start/exit/onetask"), method = Array(RequestMethod.POST))
+  def startExitOne(@RequestParam("key") key: String,@RequestParam("value") value: String) = {
+    Mysql2KafkaService.startOneExistTask(key,value)
+  }
+
+  @ApiOperation(value = "根据syncTaskId重新启动mysql2kafka任务", httpMethod = "POST", notes = "")
+  @RequestMapping(value = Array("/start/exit/onetask/synctaskid"), method = Array(RequestMethod.POST))
+  def startExitSyncTaskId(@RequestParam("syncTaskId") syncTaskId: String) = {
+    Mysql2KafkaService.startOneExistTask("syncTaskId",syncTaskId)
+  }
+
+  @ApiOperation(value = "启动所有已经存在的mysql2kafka任务", httpMethod = "POST", notes = "")
+  @RequestMapping(value = Array("/start/exit/alltasks"), method = Array(RequestMethod.POST))
+  def startAllExitTasks() = {
+    Mysql2KafkaService.startAllExistTask
+  }
+
   @ApiOperation(value = "开始一个新的mysql2kafka任务", httpMethod = "POST", notes = "")
   @RequestMapping(value = Array("/new/"), method = Array(RequestMethod.POST))
   def createNewTask(@RequestBody requestBody: Mysql2kafkaTaskRequestBean) = {
@@ -43,25 +56,8 @@ class Mysql2KafkaTaskController {
     ValidationUtils.notblank(requestBody.getZookeeperServers, "ZookeeperServers cannot be blank")
     /** *****************************************************/
 
+
     Mysql2KafkaService.startNewOneTask(requestBody)
-  }
-
-  @ApiOperation(value = "开始一个已经存在的mysql2kafka任务", httpMethod = "POST", notes = "")
-  @RequestMapping(value = Array("/start/exit/onetask"), method = Array(RequestMethod.POST))
-  def startExitOne(@RequestParam("key") key: String,@RequestParam("value") value: String) = {
-    Mysql2KafkaService.startOneExistTask(key,value)
-  }
-
-  @ApiOperation(value = "根据syncTaskId重新启动mysql2kafka任务", httpMethod = "POST", notes = "")
-  @RequestMapping(value = Array("/start/exit/onetask/synctaskid"), method = Array(RequestMethod.POST))
-  def startExitSyncTaskId(@RequestParam("syncTaskId") syncTaskId: String) = {
-    Mysql2KafkaService.startOneExistTask("syncTaskId",syncTaskId)
-  }
-
-  @ApiOperation(value = "启动所有已经存在的mysql2kafka任务", httpMethod = "POST", notes = "")
-  @RequestMapping(value = Array("/start/exit/alltasks"), method = Array(RequestMethod.POST))
-  def startAllExitTasks() = {
-    Mysql2KafkaService.startAllExistTask
   }
 
   @ApiOperation(value = "查看任务状态", httpMethod = "GET", notes = "")
