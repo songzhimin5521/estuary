@@ -19,6 +19,7 @@ object Mysql2KafkaService {
   val logger: Logger = LoggerFactory.getLogger(Mysql2KafkaService.getClass)
 
   val mongoPersistence = new MongoPersistence[Mysql2kafkaTaskRequestBean]
+  logger.error("error error ===============================")
 
   // 根据syncTaskId从mongodb中查询出详细信息
   def loadOneExistTask(key: String, value: String): Mysql2kafkaTaskRequestBean = {

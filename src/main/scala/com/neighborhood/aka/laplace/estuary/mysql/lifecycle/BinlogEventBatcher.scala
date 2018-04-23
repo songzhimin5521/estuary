@@ -261,7 +261,7 @@ class BinlogEventBatcher(
         *
         * @param dbNameList 需要发送dummyData的db名称列表
         * @param sinker     sinker的ActorRef
-        *                   构造假数据并发送给sinker
+          *                   构造假数据并发送给sinker
         */
       def buildAndSendDummyKafkaMessage(dbNameList: Iterable[String])(sinker: ActorRef): Unit = {
         val kafkaMessageList: List[Any] = dbNameList

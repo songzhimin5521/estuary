@@ -39,9 +39,9 @@
 
     <!--  邮件 -->
     <!-- SMTP server的地址，必需指定。如网易的SMTP服务器地址是： smtp.163.com -->
-    <property name="smtpHost" value="owa.finupgroup.com"/>
+    <property name="smtpHost" value=""/>
     <!-- SMTP server的端口地址。默认值：25 -->
-    <property name="smtpPort" value="587"/>
+    <property name="smtpPort" value=""/>
     <!-- 发送邮件账号，默认为null -->
     <property name="username" value=""/><!-- 发送人邮箱 -->
     <!-- 发送邮件密码，默认为null -->
@@ -49,7 +49,7 @@
     <!-- 如果设置为true，appender将会使用SSL连接到日志服务器。默认值：false -->
     <property name="SSL" value="false"/>
     <!-- 指定发送到那个邮箱，可设置多个<to>属性，指定多个目的邮箱 -->
-    <property name="email_to" value="guofeifei@finupgroup.com"/>
+    <property name="email_to" value=""/>
     <!-- 指定发件人名称。如果设置成“Adam Smith &lt;smith@moral.org&gt; ”，则邮件发件人将会是“Adam Smith <smith@moral.org> ” -->
     <property name="email_from" value="logmonitor" />
     <!-- 指定emial的标题，它需要满足PatternLayout中的格式要求。如果设置成“Log: %logger - %msg ”，就案例来讲，则发送邮件时，标题为“【Error】: com.foo.Bar - Hello World ”。 默认值："%logger{20} - %m". -->

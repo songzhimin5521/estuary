@@ -7,14 +7,14 @@ import com.neighborhood.aka.laplace.estuary.bean.credential.MysqlCredentialBean
 import com.neighborhood.aka.laplace.estuary.bean.task.Mysql2KafkaTaskInfoBean
 import com.neighborhood.aka.laplace.estuary.mysql.JsonUtil
 import com.typesafe.config.ConfigFactory
-import org.scalamock.scalatest.MockFactory
+//import org.scalamock.scalatest.MockFactory
 
 import scala.util.parsing.json.JSON
 
 /**
   * Created by john_liu on 2018/2/18.
   */
-object TestContext extends MockFactory{
+object TestContext /*extends MockFactory*/{
   /**
     * Config
     */
